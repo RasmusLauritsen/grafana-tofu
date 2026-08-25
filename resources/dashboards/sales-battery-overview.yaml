@@ -1,0 +1,143 @@
+apiVersion: dashboard.grafana.app/v1beta1
+kind: Dashboard
+metadata:
+  name: sales-battery-overview
+  annotations:
+    grafana.app/folder: dfw9qgugtqsjke
+spec:
+  title: Sales Battery Overview
+  tags: [sales, battery]
+  timezone: browser
+  schemaVersion: 36
+  refresh: 5m
+  time:
+    from: now-24h
+    to: now
+  templating:
+    list: []
+  panels:
+    - id: 1
+      title: Lowest Battery
+      description: Lowest current battery reading across Home Assistant devices.
+      type: stat
+      datasource:
+        type: prometheus
+        uid: mimir
+      targets:
+        - refId: A
+          expr: bottomk(1, homeassistant_sensor_battery_percent)
+          legendFormat: "{{friendly_name}}"
+          instant: true
+      fieldConfig:
+        defaults:
+          unit: percent
+          min: 0
+          max: 100
+          thresholds:
+            mode: absolute
+            steps:
+              - color: red
+              - color: orange
+                value: 20
+              - color: green
+                value: 40
+        overrides: []
+      options:
+        colorMode: background
+        graphMode: area
+        justifyMode: auto
+        reduceOptions:
+          calcs: [lastNotNull]
+          fields: ""
+          values: false
+        textMode: auto
+      gridPos:
+        h: 7
+        w: 12
+        x: 0
+        y: 0
+    - id: 2
+      title: Batteries Below 30%
+      description: Number of devices currently reporting less than 30% battery.
+      type: stat
+      datasource:
+        type: prometheus
+        uid: mimir
+      targets:
+        - refId: A
+          expr: count(homeassistant_sensor_battery_percent < 30)
+          instant: true
+      fieldConfig:
+        defaults:
+          decimals: 0
+          thresholds:
+            mode: absolute
+            steps:
+              - color: green
+              - color: orange
+                value: 1
+              - color: red
+                value: 4
+        overrides: []
+      options:
+        colorMode: background
+        graphMode: none
+        justifyMode: auto
+        reduceOptions:
+          calcs: [lastNotNull]
+          fields: ""
+          values: false
+        textMode: auto
+      gridPos:
+        h: 7
+        w: 12
+        x: 12
+        y: 0
+    - id: 3
+      title: Battery History
+      description: Battery percentage over time for every reporting Home Assistant device.
+      type: timeseries
+      datasource:
+        type: prometheus
+        uid: mimir
+      targets:
+        - refId: A
+          expr: homeassistant_sensor_battery_percent
+          legendFormat: "{{friendly_name}}"
+          range: true
+      fieldConfig:
+        defaults:
+          unit: percent
+          min: 0
+          max: 100
+          color:
+            mode: palette-classic
+          custom:
+            drawStyle: line
+            fillOpacity: 8
+            lineWidth: 2
+            showPoints: never
+            spanNulls: true
+          thresholds:
+            mode: absolute
+            steps:
+              - color: green
+              - color: orange
+                value: 30
+              - color: red
+                value: 15
+        overrides: []
+      options:
+        legend:
+          calcs: [lastNotNull]
+          displayMode: table
+          placement: right
+          showLegend: true
+        tooltip:
+          mode: multi
+          sort: asc
+      gridPos:
+        h: 14
+        w: 24
+        x: 0
+        y: 7

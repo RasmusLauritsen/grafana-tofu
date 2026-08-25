@@ -1,0 +1,7 @@
+.terraform/
+.env
+*.tfvars
+*.tfvars.json
+terraform.tfstate
+terraform.tfstate.*
+tokens.md

@@ -1,0 +1,6 @@
+name: Accounting
+users:
+  - name: Alice
+    login: alice
+    email: alice@example.test
+    password: password

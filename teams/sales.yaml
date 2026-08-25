@@ -1,0 +1,6 @@
+name: Sales
+users:
+  - name: Bob
+    login: bob
+    email: bob@example.test
+    password: password
