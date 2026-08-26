@@ -12,6 +12,34 @@ accounts in this Grafana OSS setup.
 | 3 | Viewer | Admin | Writes limited to own folder | Alerts limited to own folder |
 | 4 | Editor | Edit | Own folder protected by ACLs, root writable | No isolation between team alerts |
 
+## Human User Summary
+
+This table summarizes the practical human-user combinations in Grafana OSS.
+"Own folder" means a folder where the user receives the listed permission
+directly or through team membership. Contact points are organization-scoped, so
+the folder permission does not affect them.
+
+| Organization role | Own folder ACL | Root/General dashboards | Own folder dashboards | Alerts | Contact points |
+|---|---|---|---|---|---|
+| Viewer | View | Read only | Read only | Read only | Read only |
+| Viewer | Edit | Read only | CRUD | Read only | Read only |
+| Viewer | Admin | Read only | CRUD plus ACL management | CRUD in own folder | Read only |
+| Editor | View | Writable | Read only | Organization-wide CRUD | Organization-wide CRUD |
+| Editor | Edit | Writable | CRUD | Organization-wide CRUD | Organization-wide CRUD |
+| Editor | Admin | Writable | CRUD plus ACL management | Organization-wide CRUD | Organization-wide CRUD |
+
+Important consequences:
+
+- Organization `Viewer` plus folder `Edit` is the least-privilege combination
+  for users who only need to manage dashboards in their team folder.
+- Organization `Viewer` plus folder `Admin` also enables folder-scoped alert
+  management, but lets the user change that folder's ACL.
+- Organization `Editor` grants broad alert and contact-point management that is
+  not constrained by the user's own-folder ACL.
+- Organization Editors can create root dashboards and top-level folders. In the
+  App Platform API, some root dashboards created by an Editor could not later be
+  updated or deleted by that user and required Admin cleanup.
+
 Legend:
 
 | Value | Meaning |
