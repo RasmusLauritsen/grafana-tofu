@@ -19,7 +19,7 @@ These credentials are intentionally insecure and suitable only for a disposable
 local environment. Do not expose port 3000 beyond the development machine.
 
 The Mimir datasource defaults to
-`http://host.docker.internal:9009/prometheus`. Override it for your environment:
+`http://192.168.50.25:9009/prometheus`. Override it for your environment:
 
 ```bash
 TF_VAR_mimir_url=http://mimir.example.test:9009/prometheus make up

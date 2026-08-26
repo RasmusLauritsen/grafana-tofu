@@ -59,6 +59,14 @@ resource "grafana_user" "team" {
   password = each.value.password
 }
 
+# Grants every declared team user the Editor role in the default organization.
+resource "grafana_organization" "main" {
+  name         = "Main Org."
+  create_users = false
+  admin_user   = "admin"
+  editors      = [for user in grafana_user.team : user.email]
+}
+
 # Creates each Grafana team and assigns its declared users as members.
 resource "grafana_team" "team" {
   for_each = local.teams
@@ -97,7 +105,7 @@ resource "grafana_folder_permission" "team" {
 
   permissions {
     user_id    = grafana_service_account.team[each.key].id
-    permission = "Edit"
+    permission = "Admin"
   }
 }
 
@@ -106,7 +114,7 @@ resource "grafana_service_account" "team" {
   for_each = local.teams
 
   name = "${each.key}-service-account"
-  role = "Editor"
+  role = "Viewer"
 }
 
 # Creates an authentication token for each team's service account.

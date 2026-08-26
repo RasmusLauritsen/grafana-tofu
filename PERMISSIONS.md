@@ -1,6 +1,6 @@
 # Grafana OSS Service Account Permissions
 
-This document compares the three practical role combinations for team service
+This document compares the four practical role combinations for team service
 accounts in this Grafana OSS setup.
 
 ## Summary
@@ -9,7 +9,8 @@ accounts in this Grafana OSS setup.
 |---|---|---|---|---|
 | 1 | Viewer | View | Read-only everywhere | No alert management |
 | 2 | Viewer | Edit | Writes limited to own folder | No alert management |
-| 3 | Editor | Edit | Own folder protected by ACLs, root writable | No isolation between team alerts |
+| 3 | Viewer | Admin | Writes limited to own folder | Alerts limited to own folder |
+| 4 | Editor | Edit | Own folder protected by ACLs, root writable | No isolation between team alerts |
 
 Legend:
 
@@ -80,7 +81,73 @@ Folder `Edit` grants dashboard management but does not grant
 | Alert dependency | Alerts must be provisioned by a privileged central identity |
 | Privileged workflow | A compromised central provisioning token can affect all teams |
 
-## Option 3: Editor on organization, Edit on team folder
+## Option 3: Viewer on organization, Admin on team folder
+
+This is the least-privilege option tested that allows a team service account to
+manage both dashboards and alerts in its own folder.
+
+### Dashboards
+
+| Operation | Own team folder | Other team folder | Root/General |
+|---|---:|---:|---:|
+| Create | Yes | No (`403`) | No (`403`) |
+| Edit | Yes | No (`403`) | No (`403`) |
+| Delete | Yes | No (`403`) | No (`403`) |
+
+### Alerts
+
+| Operation | Own team folder | Other team folder | Root/General |
+|---|---:|---:|---:|
+| Create | Yes (verified) | No (`403`) | N/A |
+| Edit | Yes (verified) | No (`403`) | N/A |
+| Delete | Yes (verified) | No (`403`) | N/A |
+
+The Sales service account created, updated, and deleted an alert rule while it
+had organization `Viewer` and folder `Admin`. Folder `Admin`, unlike folder
+`Edit`, grants the required alert-rule permissions without making the service
+account an organization Editor.
+
+### Current Sales service account permissions
+
+The following matrix was verified on Grafana OSS 13.2.0 using
+`sa-1-sales-service-account`, which has organization `Viewer` and `Admin` on the
+Sales folder. These results use Grafana HTTP APIs directly.
+
+| Resource | Create | Read | Update | Delete |
+|---|---:|---:|---:|---:|
+| Folders | No (`403`) | Yes (`200`) | Own folder: Yes (`200`) | No (`403`) |
+| Folder ACLs | N/A | Yes | Own folder: Yes (`200`) | N/A |
+| Users | No (`403`) | No (`403`) | No (`403`) | No (`403`) |
+| Dashboards in Sales | Yes (`200`) | Yes (`200`) | Yes (`200`) | Yes (`200`) |
+| Alerts in Sales, App Platform API | Yes (`201`) | Yes (`200`) | Yes (`200`) | Yes (`200`) |
+| Alerts, deprecated provisioning API | No (`403`) | Existing rules only | No (`403`) | No (`403`) |
+| Service accounts | No (`403`) | No (`403`) | No (`403`) | No (`403`) |
+| Contact points | No (`403`) | Yes | No (`403`) | No (`403`) |
+| Datasources | No (`403`) | Yes (`200`) | No (`403`) | No (`403`) |
+| Teams | No (`403`) | No (`403`) | No (`403`) | No (`403`) |
+| Notification policy | N/A | Yes (`200`) | No (`403`) | No (`403`) |
+
+The modern App Platform alert endpoint is
+`/apis/rules.alerting.grafana.app/v0alpha1`. It honors folder `Admin` for alert
+CRUD. The deprecated `/api/v1/provisioning/alert-rules` endpoint additionally
+requires provisioning permissions and returns `403` for the same identity.
+
+Folder `Admin` is more powerful through the HTTP API than the earlier gcx test
+suggested. The service account can rename its folder and replace its ACL. It can
+therefore delegate `Admin` to another user or team within that folder. OpenTofu
+restores the intended ACL on its next apply, but does not prevent temporary ACL
+changes between applies.
+
+### Risks
+
+| Risk | Impact |
+|---|---|
+| Datasource access | The service account can query any datasource it can see |
+| Cross-team visibility | It can view other folders unless Viewer access is removed |
+| Folder administration | It can manage dashboards and alert rules in its folder |
+| Contact-point dependency | Contact points still require a privileged central identity |
+
+## Option 4: Editor on organization, Edit on team folder
 
 This enables team-managed dashboards and alerts, but alert permissions are not
 isolated by the folder dashboard ACLs.
@@ -128,18 +195,91 @@ Measured cross-team test:
 | Token compromise | Attacker gains broad dashboard and alert write access |
 | ACL drift | A missing or manually changed folder ACL can expose team dashboards |
 
+## Contact Points
+
+Contact points are organization-scoped, not folder-scoped. Folder permission
+therefore does not change whether a service account can create, update, or
+delete them.
+
+| Organization role | Folder permission | Read | Create | Edit | Delete |
+|---|---|---:|---:|---:|---:|
+| Viewer | View | Yes | No (`403`) | No (`403`) | No (`403`) |
+| Viewer | Edit | Yes | No (`403`) | No (`403`) | No (`403`) |
+| Viewer | Admin | Yes (verified) | No (`403`, verified) | No (`403`, verified) | No (`403`, verified) |
+| Editor | Edit | Yes | Yes | Yes | Yes |
+| Admin | N/A | Yes | Yes (verified) | Yes (verified) | Yes (verified) |
+
+The Viewer tests returned missing `alert.notifications.receivers:create`,
+`alert.notifications.receivers:write`, and
+`alert.notifications.receivers:delete` permissions. Because contact points are
+shared across the organization, use a central privileged identity to provision
+them when team service accounts remain Viewers.
+
+## Human Editor API and CLI Verification
+
+The following tests used Bob, an organization `Editor` and Sales team member.
+The built-in Editor role has `View` on managed team folders, while the Sales team
+has `Edit` on Sales.
+
+### Direct HTTP API
+
+| Resource or operation | Result |
+|---|---|
+| Sales dashboards | Full CRUD (`200`) |
+| Accounting dashboard create | Denied (`403`) |
+| Root dashboard create | Allowed (`200`) |
+| Folder create | Allowed (`200`), but the new folder immediately becomes read-only under the explicit Editor `View` ACL model |
+| Managed folder rename | Allowed (`200`) |
+| Sales folder ACL update | Denied (`403`) |
+| Sales alert CRUD | Allowed (`201`/`200`/`200`/`204`) |
+| Users | Full CRUD denied (`403`) |
+| Service accounts | Full CRUD denied (`403`) |
+| Datasources | Read allowed; create, update, and delete denied (`403`) |
+| Teams | Full CRUD denied (`403`) |
+| Contact points | Create, update, and delete allowed (`202`) |
+| Notification policy | Read and reset allowed; update reached validation (`400`), proving authorization succeeded |
+
+### gcx CLI
+
+| Resource or operation | Result |
+|---|---|
+| Sales dashboard create, update, delete | Allowed |
+| Accounting dashboard create | Denied (`403`) |
+| Root dashboard create | Allowed |
+| Root dashboard update and delete | Denied (`403`) after creation; Admin cleanup required |
+| Folder create, update, delete | Allowed for the folder created through gcx |
+| Sales alert create, update, delete | Allowed |
+| Contact point create, update, delete | Allowed |
+
+gcx uses the App Platform APIs for dashboards, folders, and alert rules, so its
+authorization behavior can differ from deprecated provisioning endpoints. The
+CLI does not bypass Grafana permissions, but it can expose capabilities that are
+easy to miss when testing only legacy APIs.
+
+### Human Editor risks
+
+| Risk | Impact |
+|---|---|
+| Root dashboard writes | Editors can create dashboards outside managed team folders |
+| Orphaned root resources | Some App Platform-created root dashboards cannot be changed by their creator and require Admin cleanup |
+| Folder creation | Editors can create unmanaged folders before OpenTofu applies restrictive ACLs |
+| Organization-wide alerts | Editors can manage Grafana alert rules beyond their team folder through broad organization permissions |
+| Notification administration | Editors can manage shared contact points and reset the organization notification policy |
+| Shared datasource queries | Editors can query all visible datasources, although they cannot administer them |
+
 ## OSS Options
 
 | Requirement | Recommended option |
 |---|---|
 | Read-only automation | Option 1: Viewer plus View |
 | Team manages dashboards, alerts managed centrally | Option 2: Viewer plus folder Edit |
-| Team directly manages dashboards and alerts; cross-team alert risk accepted | Option 3: Editor plus folder Edit |
-| Team directly manages alerts with real isolation | Separate Grafana organizations or instances |
+| Team manages dashboards and folder-isolated alerts | Option 3: Viewer plus folder Admin |
+| Team directly manages organization-wide notification resources | Option 4: Editor plus folder Edit |
+| Strong isolation for notification resources | Separate Grafana organizations or instances |
 
-For folder-isolated dashboards, Option 2 is safest. For direct alert management
-in one shared Grafana OSS organization, Option 3 works but does not isolate
-alerts between teams.
+For folder-isolated dashboards and alerts, Option 3 is the least-privilege
+combination tested. Contact points remain organization-scoped, so they need
+central provisioning or a broader organization role.
 
 Do not commit service-account tokens, generated `tokens.md`, OpenTofu state, or
 privileged provisioning credentials.

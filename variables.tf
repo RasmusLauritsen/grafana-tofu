@@ -20,5 +20,5 @@ variable "grafana_admin_password" {
 variable "mimir_url" {
   description = "Mimir Prometheus-compatible query endpoint reachable by Grafana."
   type        = string
-  default     = "http://host.docker.internal:9009/prometheus"
+  default     = "http://192.168.50.25:9009/prometheus"
 }
