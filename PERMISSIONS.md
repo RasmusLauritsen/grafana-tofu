@@ -19,14 +19,14 @@ This table summarizes the practical human-user combinations in Grafana OSS.
 directly or through team membership. Contact points are organization-scoped, so
 the folder permission does not affect them.
 
-| Organization role | Own folder ACL | Root/General dashboards | Own folder dashboards | Alerts | Contact points |
-|---|---|---|---|---|---|
-| Viewer | View | Read only | Read only | Read only | Read only |
-| Viewer | Edit | Read only | CRUD | Read only | Read only |
-| Viewer | Admin | Read only | CRUD plus ACL management | CRUD in own folder | Read only |
-| Editor | View | Writable | Read only | Organization-wide CRUD | Organization-wide CRUD |
-| Editor | Edit | Writable | CRUD | Organization-wide CRUD | Organization-wide CRUD |
-| Editor | Admin | Writable | CRUD plus ACL management | Organization-wide CRUD | Organization-wide CRUD |
+| Organization role | Own folder ACL | Root/General dashboards | Own folder dashboards | Other team folders | Alerts | Contact points | Explore/Drilldown |
+|---|---|---|---|---|---|---|---|
+| Viewer | View | Read only | Read only | Read only | Read only | Read only | No |
+| Viewer | Edit | Read only | CRUD | Read only | Read only | Read only | No |
+| Viewer | Admin | Read only | CRUD plus ACL management | Read only | CRUD in own folder | Read only | No |
+| Editor | View | Writable | Read only | Read only | Organization-wide CRUD | Organization-wide CRUD | Yes |
+| Editor | Edit | Writable | CRUD | Read only | Organization-wide CRUD | Organization-wide CRUD | Yes |
+| Editor | Admin | Writable | CRUD plus ACL management | Read only | Organization-wide CRUD | Organization-wide CRUD | Yes |
 
 Important consequences:
 
@@ -36,6 +36,10 @@ Important consequences:
   management, but lets the user change that folder's ACL.
 - Organization `Editor` grants broad alert and contact-point management that is
   not constrained by the user's own-folder ACL.
+- Other OpenTofu-managed team folders remain read-only because the built-in
+  Editor and Viewer roles receive explicit `View` access.
+- Explore and Drilldown require organization `Editor` or `Admin`; folder
+  permissions do not grant access to these features.
 - Organization Editors can create root dashboards and top-level folders. In the
   App Platform API, some root dashboards created by an Editor could not later be
   updated or deleted by that user and required Admin cleanup.
